@@ -2,6 +2,7 @@ const { Command } = require('commander');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const superagent = require('superagent'); // для частини 3
 
 const program = new Command();
 
@@ -36,33 +37,45 @@ const server = http.createServer(async (req, res) => {
     // GET
     if (method === 'GET') {
       try {
+        // Перевіряємо, чи файл вже є в кеші
         const data = await fs.promises.readFile(filePath);
         res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-        res.end(data);
+        return res.end(data);
       } catch {
-        // Якщо файл не знайдено
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not Found');
+        // Файл не знайдено в кеші → підтягуємо з http.cat
+        try {
+          const response = await superagent.get(`https://http.cat/${code}.jpg`).responseType('blob');
+          const imageData = Buffer.from(response.body);
+
+          // Зберігаємо в кеш
+          await fs.promises.writeFile(filePath, imageData);
+
+          res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+          return res.end(imageData);
+        } catch {
+          // Якщо картинки нема на http.cat
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          return res.end('Not Found');
+        }
       }
 
     // PUT
     } else if (method === 'PUT') {
       const chunks = [];
-      for await (const chunk of req) chunks.push(chunk); // збираємо дані з тіла запиту
+      for await (const chunk of req) chunks.push(chunk);
       const body = Buffer.concat(chunks);
 
-      await fs.promises.writeFile(filePath, body); // запис у кеш
+      await fs.promises.writeFile(filePath, body);
       res.writeHead(201, { 'Content-Type': 'text/plain' });
       res.end('Created');
 
     // DELETE
     } else if (method === 'DELETE') {
       try {
-        await fs.promises.unlink(filePath); // видаляємо файл з кешу
+        await fs.promises.unlink(filePath);
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('Deleted');
       } catch {
-        // Якщо файл не знайдено
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         res.end('Not Found');
       }
@@ -72,8 +85,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(405, { 'Content-Type': 'text/plain' });
       res.end('Method Not Allowed');
     }
+
   } catch (error) {
-    // Обробка помилок сервера
     console.error(error);
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end('Internal Server Error');
