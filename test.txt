@@ -1,0 +1,14 @@
+# PUT
+curl -X PUT --data-binary "@200.jpg" http://localhost:3000/200
+
+# GET
+curl -X GET http://localhost:3000/200 --output 200_copy.jpg
+
+# DELETE
+curl -X DELETE http://localhost:3000/200
+
+# GET після DELETE
+curl -X GET http://localhost:3000/200
+
+# Інший метод
+curl -X POST http://localhost:3000/200
